@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Feature-Policy" content="geolocation *">
+<title>TransiteCL – Paraderos en Vivo</title>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg:#0d0f14; --surface:#161920; --surface2:#1e2230;
+    --border:#2a2f42; --blue:#3b82f6; --blue-light:#60a5fa;
+    --amber:#f59e0b; --amber-light:#fcd34d; --green:#22c55e;
+    --red:#ef4444; --text:#f0f2f8; --muted:#7b82a0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Figtree',sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+  header{background:linear-gradient(135deg,#1a2a6c,#2563eb);padding:0 20px;height:58px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;box-shadow:0 4px 20px rgba(37,99,235,.35);z-index:1000;}
+  .logo{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:800;}
+  .logo-icon{width:34px;height:34px;background:rgba(255,255,255,.2);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;}
+  .header-right{display:flex;align-items:center;gap:8px;}
+  .gps-pill{font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;display:flex;align-items:center;gap:6px;transition:all .3s;}
+  .gps-search{background:rgba(245,158,11,.2);color:var(--amber-light);border:1px solid rgba(245,158,11,.3);}
+  .gps-ok{background:rgba(34,197,94,.2);color:#4ade80;border:1px solid rgba(34,197,94,.3);}
+  .gps-off{background:rgba(120,120,140,.15);color:var(--muted);border:1px solid var(--border);}
+  .gps-err{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.3);}
+  .dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 1.5s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.4)}}
+  .source-badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.25);}
+  .app-body{flex:1;display:grid;grid-template-columns:370px 1fr;overflow:hidden;}
+  .panel{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+  .panel-top{padding:16px 16px 0;flex-shrink:0;}
+  .plabel{font-size:11px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;}
+  .city-wrap{position:relative;margin-bottom:12px;}
+  .city-sel{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:13px;color:var(--text);padding:10px 36px 10px 40px;font-family:'Figtree',sans-serif;font-size:14px;font-weight:600;appearance:none;cursor:pointer;transition:border-color .2s;}
+  .city-sel:focus{outline:none;border-color:var(--blue);}
+  .city-ico{position:absolute;left:13px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:16px;}
+  .city-arr{position:absolute;right:13px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;font-size:11px;}
+  .frow{display:flex;gap:6px;margin-bottom:12px;}
+  .ftab{flex:1;padding:8px 4px;border:1.5px solid var(--border);border-radius:11px;background:transparent;color:var(--muted);font-family:'Figtree',sans-serif;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .2s;}
+  .ftab.on-bus{background:#1d4ed8;border-color:var(--blue);color:white;}
+  .ftab.on-share_taxi{background:#92400e;border-color:var(--amber);color:var(--amber-light);}
+  .ftab.on-todos{background:var(--surface2);border-color:#4b5563;color:var(--text);}
+  .srch{position:relative;margin-bottom:10px;}
+  .srch input{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:13px;color:var(--text);padding:10px 14px 10px 38px;font-family:'Figtree',sans-serif;font-size:13px;transition:border-color .2s;}
+  .srch input:focus{outline:none;border-color:var(--blue);}
+  .srch input::placeholder{color:var(--muted);}
+  .srch-ico{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px;}
+  .radius-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .radius-row label{font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;}
+  .radius-row input[type=range]{flex:1;accent-color:var(--blue);}
+  .radius-val{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--blue-light);background:rgba(59,130,246,.15);padding:2px 8px;border-radius:6px;white-space:nowrap;}
+  .scroll{flex:1;overflow-y:auto;padding:0 12px 12px;}
+  .scroll::-webkit-scrollbar{width:3px;}
+  .scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+  .sc{background:var(--surface2);border:1.5px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;animation:fi .35s ease both;}
+  .sc::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:var(--blue);opacity:0;transition:opacity .2s;}
+  .sc.sel{border-color:var(--blue);background:#1b2848;}
+  .sc.sel::before{opacity:1;}
+  .sc:hover:not(.sel){border-color:#3b4a6b;transform:translateX(2px);}
+  @keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .sc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;gap:6px;}
+  .sc-name{font-size:13px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sc-dist{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--blue-light);background:rgba(59,130,246,.15);padding:2px 8px;border-radius:6px;white-space:nowrap;flex-shrink:0;}
+  .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;}
+  .chip{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;border:1px solid;}
+  .cm{background:#172554;color:var(--blue-light);border-color:#2563eb44;}
+  .cc{background:#451a03;color:var(--amber-light);border-color:#d9770644;}
+  .sc-ref{font-size:11px;color:var(--muted);margin-top:4px;}
+  .osm-tag{font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.25);margin-left:5px;}
+  .right{display:flex;flex-direction:column;flex:1;overflow:hidden;}
+  .map-wrap{flex:1;position:relative;}
+  #map{width:100%;height:100%;}
+  .leaflet-tile-pane{filter:brightness(.72) saturate(.65) hue-rotate(195deg);}
+  .leaflet-control-zoom{border:1px solid var(--border)!important;border-radius:10px!important;overflow:hidden;}
+  .leaflet-control-zoom-in,.leaflet-control-zoom-out{background:var(--surface)!important;color:var(--text)!important;border:none!important;}
+  .leaflet-control-zoom-in:hover,.leaflet-control-zoom-out:hover{background:var(--surface2)!important;}
+  .leaflet-control-attribution{background:rgba(13,15,20,.75)!important;color:var(--muted)!important;font-size:9px!important;}
+  .leaflet-control-attribution a{color:var(--blue-light)!important;}
+  .leaflet-popup-content-wrapper{background:var(--surface)!important;border:1px solid var(--border);border-radius:14px!important;box-shadow:0 8px 30px rgba(0,0,0,.5)!important;color:var(--text)!important;padding:0!important;}
+  .leaflet-popup-content{margin:0!important;}
+  .leaflet-popup-tip{background:var(--surface)!important;}
+  .pop{padding:14px;min-width:230px;}
+  .pop-name{font-size:14px;font-weight:800;margin-bottom:4px;}
+  .pop-src{font-size:10px;color:var(--muted);margin-bottom:10px;}
+  .pop-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;}
+  .pop-row:last-child{border-bottom:none;}
+  .pop-num{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;}
+  .pm{color:var(--blue-light);} .pc{color:var(--amber-light);}
+  .pop-desc{flex:1;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pop-min{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;}
+  .ts{color:var(--green);} .tm{color:var(--amber);} .tl{color:var(--muted);}
+  .dbar{background:var(--surface);border-top:1px solid var(--border);padding:0 20px 16px;max-height:280px;overflow-y:auto;flex-shrink:0;}
+  .dbar::-webkit-scrollbar{width:3px;}
+  .dbar::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+  .dh{padding:14px 0 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:5;}
+  .dh-t{font-size:15px;font-weight:800;}
+  .dh-t em{color:var(--blue-light);font-style:normal;}
+  .dh-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+  .dh-x{background:var(--surface2);border:none;border-radius:8px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer;font-size:13px;transition:all .2s;}
+  .dh-x:hover{background:var(--border);color:var(--text);}
+  .dl{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin:12px 0 8px;}
+  .dr{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(42,47,66,.5);animation:fi .3s ease both;}
+  .dr:last-child{border-bottom:none;}
+  .dico{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+  .im{background:#172554;} .ic{background:#451a03;}
+  .dinfo{flex:1;min-width:0;}
+  .dname{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .nm{color:var(--blue-light);} .nc{color:var(--amber-light);}
+  .ddesc{font-size:11px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .dtime{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;text-align:right;flex-shrink:0;}
+  .dmin{font-size:9px;color:var(--muted);font-family:'Figtree',sans-serif;}
+  .spin{width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:180px;gap:10px;color:var(--muted);text-align:center;font-size:13px;padding:0 12px;line-height:1.6;}
+  .eico{font-size:38px;opacity:.3;}
+  .gps-ov{position:fixed;inset:0;background:rgba(10,12,18,.97);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(8px);}
+  .gps-ov.gone{display:none;}
+  .gps-card{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:36px 32px;max-width:420px;width:90%;display:flex;flex-direction:column;align-items:center;gap:18px;box-shadow:0 24px 60px rgba(0,0,0,.6);}
+  .gps-big{font-size:56px;animation:bob 1.4s ease-in-out infinite;}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  .gps-card h2{font-size:20px;font-weight:800;text-align:center;}
+  .gps-card p{font-size:13px;color:var(--muted);text-align:center;line-height:1.7;margin-top:-6px;}
+  .gps-feat{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;width:100%;display:flex;flex-direction:column;gap:8px;}
+  .gps-feat-row{display:flex;align-items:center;gap:10px;font-size:13px;}
+  .gps-feat-ico{font-size:18px;flex-shrink:0;}
+  .gps-feat-txt{color:var(--muted);line-height:1.4;}
+  .gps-feat-txt strong{color:var(--text);display:block;font-size:12px;margin-bottom:1px;}
+  .err-box{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:12px;padding:12px 16px;font-size:12px;color:#fca5a5;text-align:left;line-height:1.6;width:100%;display:none;}
+  .err-box.show{display:block;}
+  .btn-prim{background:linear-gradient(135deg,#2563eb,#1d4ed8);border:none;border-radius:14px;color:white;padding:14px 32px;font-family:'Figtree',sans-serif;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(37,99,235,.4);transition:all .2s;width:100%;}
+  .btn-prim:hover{transform:translateY(-2px);}
+  .btn-prim:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+  .btn-sec{background:transparent;border:1px solid var(--border);border-radius:14px;color:var(--muted);padding:10px 26px;font-family:'Figtree',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;width:100%;}
+  .btn-sec:hover{color:var(--text);border-color:#4b5563;}
+  .btn-reload{background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:6px 14px;font-family:'Figtree',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px;}
+  .btn-reload:hover{background:var(--border);}
+  .ai-badge{position:fixed;bottom:16px;right:16px;background:linear-gradient(135deg,#059669,#047857);border-radius:30px;padding:7px 14px;font-size:11px;font-weight:700;color:white;display:flex;align-items:center;gap:6px;box-shadow:0 4px 20px rgba(5,150,105,.4);z-index:500;}
+  @media(max-width:768px){.app-body{grid-template-columns:1fr;}.panel{display:none;}}
+</style>
+</head>
+<body>
+
+<div class="gps-ov" id="gpsOv">
+  <div class="gps-card">
+    <div class="gps-big" id="gpsEmoji">📡</div>
+    <h2 id="gpsTitle">Paraderos Reales con GPS</h2>
+    <p id="gpsDesc">Usamos tu ubicación + OpenStreetMap para encontrar paraderos reales cercanos a ti.</p>
+    <div class="gps-feat">
+      <div class="gps-feat-row">
+        <div class="gps-feat-ico">🗺️</div>
+        <div class="gps-feat-txt"><strong>Paraderos reales de OSM</strong>Datos de OpenStreetMap, la base de datos geográfica más grande del mundo</div>
+      </div>
+      <div class="gps-feat-row">
+        <div class="gps-feat-ico">🚌</div>
+        <div class="gps-feat-txt"><strong>Rutas y referencias reales</strong>Números de micro, nombres de paradero y refs oficiales</div>
+      </div>
+      <div class="gps-feat-row">
+        <div class="gps-feat-ico">📍</div>
+        <div class="gps-feat-txt"><strong>Ordenados por distancia</strong>Los paraderos más cercanos primero</div>
+      </div>
+    </div>
+    <div class="err-box" id="errBox"></div>
+    <button class="btn-prim" id="btnGPS" onclick="startGPS()">📍 Activar GPS</button>
+    <button class="btn-sec" onclick="skipGPS()">Continuar sin GPS — Rancagua</button>
+  </div>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🚌</div>
+    TransiteCL
+  </div>
+  <div class="header-right">
+    <span class="source-badge">🟢 OSM Real</span>
+    <div class="gps-pill gps-off" id="gpsPill">
+      <div class="dot"></div>
+      <span id="gpsLbl">Sin GPS</span>
+    </div>
+  </div>
+</header>
+
+<div class="app-body">
+  <div class="panel">
+    <div class="panel-top">
+      <div class="plabel">📍 Ciudad</div>
+      <div class="city-wrap">
+        <span class="city-ico">🏙️</span>
+        <select class="city-sel" id="citySel">
+          <option value="Santiago">Santiago</option>
+          <option value="Rancagua" selected>Rancagua</option>
+          <option value="Valparaíso">Valparaíso</option>
+          <option value="Concepción">Concepción</option>
+          <option value="Temuco">Temuco</option>
+          <option value="Antofagasta">Antofagasta</option>
+          <option value="La Serena">La Serena</option>
+          <option value="Iquique">Iquique</option>
+        </select>
+        <span class="city-arr">▼</span>
+      </div>
+      <div class="frow">
+        <button class="ftab on-bus" data-f="bus">🚌 Micros</button>
+        <button class="ftab" data-f="share_taxi">🚕 Colectivos</button>
+        <button class="ftab" data-f="todos">ℹ️ Todos</button>
+      </div>
+      <div class="srch">
+        <span class="srch-ico">🔍</span>
+        <input id="srchInput" type="text" placeholder="Buscar paradero o ruta...">
+      </div>
+      <div class="radius-row">
+        <label>📏 Radio:</label>
+        <input type="range" id="radiusSlider" min="200" max="2000" step="100" value="800" oninput="updateRadius(this.value)">
+        <span class="radius-val" id="radiusVal">800 m</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div class="plabel" style="margin:0">Paraderos encontrados</div>
+        <button class="btn-reload" onclick="loadStops()">🔄 Actualizar</button>
+      </div>
+    </div>
+    <div class="scroll" id="stopList">
+      <div class="empty"><div class="spin"></div></div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="map-wrap"><div id="map"></div></div>
+    <div class="dbar" id="dbar">
+      <div class="empty" style="height:80px">
+        <span>Selecciona un paradero para ver sus rutas</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="ai-badge">🟢 Datos OSM reales</div>
+
+<script>
+let uLat=-34.1703,uLng=-70.7444,city="Rancagua",filterType="bus",radius=800,stops=[],selId=null,map,uMarker,radiusCircle,markers=[];
+const CITY_COORDS={"Santiago":[-33.4569,-70.6483],"Rancagua":[-34.1703,-70.7444],"Valparaíso":[-33.0472,-71.6127],"Concepción":[-36.8201,-73.0444],"Temuco":[-38.7359,-72.5904],"Antofagasta":[-23.6509,-70.3954],"La Serena":[-29.9027,-71.2519],"Iquique":[-20.2208,-70.1431]};
+
+function updateRadius(val){radius=parseInt(val);document.getElementById('radiusVal').textContent=radius>=1000?`${(radius/1000).toFixed(1)} km`:`${radius} m`;if(radiusCircle&&map)radiusCircle.setRadius(radius);}
+
+function initMap(lat,lng){
+  if(map){map.flyTo([lat,lng],15,{duration:1});if(uMarker)uMarker.setLatLng([lat,lng]);if(radiusCircle)radiusCircle.setLatLng([lat,lng]);return;}
+  map=L.map('map').setView([lat,lng],15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',maxZoom:19}).addTo(map);
+  radiusCircle=L.circle([lat,lng],{radius:radius,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:0.05,weight:1.5,dashArray:'6 4'}).addTo(map);
+  const uIco=L.divIcon({html:`<div style="width:20px;height:20px;background:#3b82f6;border-radius:50%;border:3px solid white;box-shadow:0 0 0 8px rgba(59,130,246,.2)"></div>`,iconSize:[20,20],iconAnchor:[10,10],className:''});
+  uMarker=L.marker([lat,lng],{icon:uIco,zIndexOffset:2000}).addTo(map);
+  uMarker.bindPopup('<div style="color:#f0f2f8;font-weight:700;font-size:13px;padding:8px 12px">📍 Tu ubicación</div>');
+}
+
+window.addEventListener('load',()=>{
+  if(!navigator.geolocation){showErr('Tu navegador no soporta geolocalización.');document.getElementById('btnGPS').disabled=true;}
+  else if(location.protocol==='file:'){showErr('Abriste el archivo con file://. El GPS necesita HTTPS o localhost. Usa GitHub Pages o VS Code Live Server.');document.getElementById('btnGPS').disabled=true;}
+});
+
+function showErr(msg){const b=document.getElementById('errBox');b.textContent='❌ '+msg;b.classList.add('show');document.getElementById('gpsEmoji').textContent='⚠️';document.getElementById('gpsTitle').textContent='GPS no disponible';document.getElementById('gpsDesc').textContent='Puedes continuar sin GPS y elegir ciudad manualmente.';}
+
+function startGPS(){
+  const btn=document.getElementById('btnGPS');btn.disabled=true;btn.textContent='⏳ Buscando señal...';setPill('search');
+  const timer=setTimeout(()=>{btn.disabled=false;btn.textContent='📍 Reintentar GPS';showErr('Tiempo agotado. Verifica que el GPS esté activo.');setPill('err');},12000);
+  navigator.geolocation.getCurrentPosition(
+    pos=>{clearTimeout(timer);uLat=pos.coords.l
